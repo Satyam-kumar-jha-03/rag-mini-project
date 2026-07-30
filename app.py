@@ -5,7 +5,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 import time
 import re
 
-GROQ_API_KEY = "API key"
+GROQ_API_KEY = ""
 
 st.set_page_config(
     page_title="RAG Mini Groq",
