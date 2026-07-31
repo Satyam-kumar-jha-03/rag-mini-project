@@ -5,7 +5,9 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 import time
 import re
 from datetime import datetime
-
+import chromadb
+from chromadb.utils import embedding_functions
+global collection
 GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 
 st.set_page_config(
@@ -15,7 +17,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Enhanced CSS with modern design
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
@@ -298,6 +299,27 @@ def get_client() -> OpenAI | None:
         api_key=key,
         base_url="https://api.groq.com/openai/v1",
     )
+def init_vector_store():
+    """Initialize ChromaDB with Sentence Transformers embeddings"""
+    # Create embedding function (runs locally)
+    embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
+        model_name="all-MiniLM-L6-v2"
+    )
+    
+    # Create persistent client
+    client = chromadb.PersistentClient(path="./chroma_db_store")
+    
+    # Get or create collection
+    collection = client.get_or_create_collection(
+        name="rag_docs",
+        embedding_function=embedding_fn
+    )
+    
+    return client, collection
+
+# Initialize vector store
+chroma_client, collection = init_vector_store()
+
 
 def wait_for_rate_limit():
     current_time = time.time()
@@ -339,14 +361,44 @@ def call_with_retry(client: OpenAI, model: str, system: str, user: str,
             raise
 
 def find_relevant_chunks(query: str, chunks: list[str], top_k: int = 4) -> list[str]:
-    query_words = set(re.sub(r'[^\w\s]', '', query.lower()).split())
-    scored = sorted(
-        chunks,
-        key=lambda c: sum(1 for w in query_words if w in c.lower()),
-        reverse=True,
-    )
-    top = [c for c in scored[:top_k] if any(w in c.lower() for w in query_words)]
-    return top if top else chunks[:top_k]
+    """
+    Find the most semantically relevant chunks using ChromaDB vector search.
+    Returns top_k chunks most similar to the query.
+    """
+    global collection  # Use the global collection
+    
+    # If collection is empty or we have new chunks, add them
+    if collection.count() == 0 and chunks:
+        collection.add(
+            ids=[f"chunk_{i}" for i in range(len(chunks))],
+            documents=chunks
+        )
+        return chunks[:top_k]  # Return first chunks for first query
+    
+    try:
+        # Query using vector search
+        results = collection.query(
+            query_texts=[query],
+            n_results=top_k
+        )
+        
+        # Extract the documents from results
+        if results and results['documents'] and len(results['documents']) > 0:
+            return results['documents'][0]
+        else:
+            return chunks[:top_k]
+            
+    except Exception as e:
+        # Fallback to keyword search if vector search fails
+        st.warning(f"Vector search error: {str(e)}. Falling back to keyword search.")
+        query_words = set(re.sub(r'[^\w\s]', '', query.lower()).split())
+        scored = sorted(
+            chunks,
+            key=lambda c: sum(1 for w in query_words if w in c.lower()),
+            reverse=True,
+        )
+        top = [c for c in scored[:top_k] if any(w in c.lower() for w in query_words)]
+        return top if top else chunks[:top_k]
 
 # Sidebar with enhanced design
 with st.sidebar:
@@ -429,6 +481,28 @@ if uploaded_file:
                 separators=["\n\n", "\n", ". ", " ", ""],
             )
             chunks = splitter.split_text(text)
+            with st.spinner("Indexing chunks for semantic search..."):
+            # Clear old collection data
+                try:
+                    chroma_client.delete_collection("rag_docs")
+                except:
+                    pass  # Collection might not exist
+                
+                # Recreate collection
+                
+                collection = chroma_client.get_or_create_collection(
+                    name="rag_docs",
+                    embedding_function=embedding_functions.SentenceTransformerEmbeddingFunction(
+                        model_name="all-MiniLM-L6-v2"
+                    )
+                )
+                
+                # Add new chunks to vector store
+                if chunks:
+                    collection.add(
+                        ids=[f"chunk_{i}" for i in range(len(chunks))],
+                        documents=chunks
+                    )
 
             st.session_state.document_text = text
             st.session_state.document_chunks = chunks
