@@ -1,6 +1,6 @@
-streamlit
-openai
-PyPDF2
-langchain-text-splitters
-chromaDB
-sentence_transformers
+streamlit>=1.28.0
+openai>=1.0.0
+PyPDF2>=3.0.0
+langchain-text-splitters>=0.0.1
+chromadb>=0.4.0
+sentence-transformers>=2.2.0
