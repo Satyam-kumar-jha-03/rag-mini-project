@@ -1,4 +1,4 @@
-import streamlit as st
+Simport streamlit as st
 from openai import OpenAI, RateLimitError, APIStatusError
 import PyPDF2
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -284,7 +284,7 @@ defaults = {
     "last_request_time": 0.0,
     "retry_after": 0.0,
     "request_count": 0,
-    "model_name": "llama-3.3-70b-versatile",
+    "model_name": "openai/gpt-oss-20b",
     "questions_asked": 0,
 }
 for k, v in defaults.items():
@@ -409,13 +409,13 @@ with st.sidebar:
         model_choice = st.selectbox(
             "Choose AI Brain",
             options=[
-                "llama-3.3-70b-versatile",
-                "llama-3.1-8b-instant",
-                "mixtral-8x7b-32768",
-                "gemma2-9b-it",
+                "openai/gpt-oss-20b",
+                "openai/gpt-oss-120b",
+                "qwen/qwen3.6-27b",
+                "openai/gpt-oss-safeguard-20b",
             ],
             index=0,
-            help="llama-3.3-70b-versatile recommended for best reasoning",
+            help="openai/gpt-oss-20b recommended for best reasoning",
         )
         st.session_state.model_name = model_choice
     
