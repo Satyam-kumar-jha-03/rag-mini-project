@@ -1,4 +1,4 @@
-Simport streamlit as st
+import streamlit as st
 from openai import OpenAI, RateLimitError, APIStatusError
 import PyPDF2
 from langchain_text_splitters import RecursiveCharacterTextSplitter
